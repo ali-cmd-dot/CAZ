@@ -11,7 +11,6 @@ let stockData = [];
 let filteredStockData = [];
 let importHistory = [];
 let currentStockFilter = '';
-let userSession = null;
 
 // Required CSV columns
 const REQUIRED_COLUMNS = [
@@ -24,65 +23,56 @@ const REQUIRED_COLUMNS = [
     'Device IMEI'
 ];
 
-// Initialize stock management
-document.addEventListener('DOMContentLoaded', function() {
-    // Get user session from localStorage
-    checkStockUserSession();
-    
+// UPDATED: Initialize stock management when stock content is shown
+function initializeStockManagement() {
     // Load initial data
     loadStockData();
     
-    // Setup event listeners
-    setupStockEventListeners();
-    
-    // Setup realtime listeners
-    setupStockRealtimeListeners();
-});
-
-// Check user session for stock management
-function checkStockUserSession() {
-    const savedSession = localStorage.getItem('cautio_user_session');
-    if (savedSession) {
-        try {
-            const sessionData = JSON.parse(savedSession);
-            if (sessionData.expires > Date.now()) {
-                userSession = sessionData.user;
-            }
-        } catch (error) {
-            console.error('Error parsing session:', error);
-        }
-    }
-    
-    if (!userSession) {
-        // Redirect to main dashboard login
-        window.location.href = 'index.html';
+    // Setup event listeners only if not already set
+    if (!window.stockEventListenersSet) {
+        setupStockEventListeners();
+        setupStockRealtimeListeners();
+        window.stockEventListenersSet = true;
     }
 }
 
-// Navigation functions
+// UPDATED: Navigation functions for combined structure
 function goBackToDashboard() {
-    window.location.href = 'index.html';
+    // Instead of redirecting, show customers overview
+    showCustomersOverview();
 }
 
 function goToInventoryManagement() {
-    window.location.href = 'inventory.html';
+    // Instead of redirecting, show inventory management content
+    showInventoryManagement();
 }
 
 // Setup event listeners for stock management
 function setupStockEventListeners() {
     // CSV file input
     const csvFileInput = document.getElementById('csvFileInput');
-    csvFileInput.addEventListener('change', handleCSVFileSelect);
+    if (csvFileInput) {
+        csvFileInput.addEventListener('change', handleCSVFileSelect);
+    }
     
     // Drag and drop for CSV import
     const csvImportArea = document.getElementById('csvImportArea');
-    csvImportArea.addEventListener('dragover', handleDragOver);
-    csvImportArea.addEventListener('dragleave', handleDragLeave);
-    csvImportArea.addEventListener('drop', handleFileDrop);
+    if (csvImportArea) {
+        csvImportArea.addEventListener('dragover', handleDragOver);
+        csvImportArea.addEventListener('dragleave', handleDragLeave);
+        csvImportArea.addEventListener('drop', handleFileDrop);
+    }
     
     // Search functionality
-    document.getElementById('stockSearchInput').addEventListener('input', handleStockSearch);
-    document.getElementById('statusFilter').addEventListener('change', handleStockSearch);
+    const stockSearchInput = document.getElementById('stockSearchInput');
+    if (stockSearchInput) {
+        stockSearchInput.addEventListener('input', handleStockSearch);
+    }
+    
+    const statusFilter = document.getElementById('statusFilter');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', handleStockSearch);
+    }
 }
 
 // Setup realtime listeners for stock
@@ -204,16 +194,23 @@ function updateStockSummary() {
     const allocatedItems = stockData.filter(item => item.current_status === 'allocated').length;
     const uniqueModels = new Set(stockData.map(item => item.device_model_no)).size;
     
-    document.getElementById('totalStockItems').textContent = totalItems;
-    document.getElementById('availableItems').textContent = availableItems;
-    document.getElementById('allocatedItems').textContent = allocatedItems;
-    document.getElementById('totalModels').textContent = uniqueModels;
+    const totalStockItems = document.getElementById('totalStockItems');
+    const availableItemsEl = document.getElementById('availableItems');
+    const allocatedItemsEl = document.getElementById('allocatedItems');
+    const totalModelsEl = document.getElementById('totalModels');
+    
+    if (totalStockItems) totalStockItems.textContent = totalItems;
+    if (availableItemsEl) availableItemsEl.textContent = availableItems;
+    if (allocatedItemsEl) allocatedItemsEl.textContent = allocatedItems;
+    if (totalModelsEl) totalModelsEl.textContent = uniqueModels;
 }
 
 // Update stock table
 function updateStockTable() {
     const tableBody = document.getElementById('stockTableBody');
     const emptyState = document.getElementById('stockEmptyState');
+    
+    if (!tableBody || !emptyState) return;
     
     if (filteredStockData.length === 0) {
         tableBody.innerHTML = '';
@@ -302,19 +299,6 @@ function createStockTableRow(item) {
         return `<span class="${badgeClass}">${conditionText}</span>`;
     };
 
-    // NEW: Add inventory status indicator
-    const getInventoryStatusBadge = (item) => {
-        // This would be determined by checking if device exists in inward/outward
-        // For now, we'll show a simple indicator based on status
-        if (item.current_status === 'available') {
-            return `<span class="px-2 py-1 text-xs rounded-full bg-green-500 text-white">📥 Ready</span>`;
-        } else if (item.current_status === 'allocated') {
-            return `<span class="px-2 py-1 text-xs rounded-full bg-orange-500 text-white">📤 Out</span>`;
-        } else {
-            return `<span class="px-2 py-1 text-xs rounded-full bg-gray-500 text-white">⚪ Unknown</span>`;
-        }
-    };
-
     return `
         <tr class="dark:border-b dark:border-dark-stroke-contrast-400 hover:dark:bg-dark-fill-base-400">
             <td class="p-4 text-body-m-regular dark:text-dark-base-600">${item.sl_no || 'N/A'}</td>
@@ -323,7 +307,6 @@ function createStockTableRow(item) {
             <td class="p-4 text-body-m-regular dark:text-dark-base-600">${item.device_model_no}</td>
             <td class="p-4">${getStatusBadge(item.current_status)}</td>
             <td class="p-4">${getConditionBadge(item.device_condition)}</td>
-            <td class="p-4">${getInventoryStatusBadge(item)}</td>
             <td class="p-4 text-body-m-regular dark:text-dark-base-600">${item.batch_no || 'N/A'}</td>
             <td class="p-4 text-body-m-regular dark:text-dark-base-600">${formatDate(item.inward_date)}</td>
             <td class="p-4">
@@ -343,30 +326,39 @@ function createStockTableRow(item) {
     `;
 }
 
-// NEW: Manage inventory function - Quick link to inventory management
+// UPDATED: Manage inventory function - Now shows inventory content instead of redirecting
 function manageInventory(deviceRegistrationNumber) {
     // Store device info in localStorage for inventory management
     localStorage.setItem('inventory_focus_device', deviceRegistrationNumber);
-    // Redirect to inventory management
-    window.location.href = 'inventory.html';
+    // Show inventory management content instead of redirecting
+    showInventoryManagement();
 }
 
 // Handle drag over event
 function handleDragOver(e) {
     e.preventDefault();
-    document.getElementById('csvImportArea').classList.add('drag-over');
+    const csvImportArea = document.getElementById('csvImportArea');
+    if (csvImportArea) {
+        csvImportArea.classList.add('drag-over');
+    }
 }
 
 // Handle drag leave event
 function handleDragLeave(e) {
     e.preventDefault();
-    document.getElementById('csvImportArea').classList.remove('drag-over');
+    const csvImportArea = document.getElementById('csvImportArea');
+    if (csvImportArea) {
+        csvImportArea.classList.remove('drag-over');
+    }
 }
 
 // Handle file drop event
 function handleFileDrop(e) {
     e.preventDefault();
-    document.getElementById('csvImportArea').classList.remove('drag-over');
+    const csvImportArea = document.getElementById('csvImportArea');
+    if (csvImportArea) {
+        csvImportArea.classList.remove('drag-over');
+    }
     
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -573,7 +565,10 @@ async function validateAndImportCSV(results, filename) {
         await loadStockData();
         
         // Clear file input
-        document.getElementById('csvFileInput').value = '';
+        const csvFileInput = document.getElementById('csvFileInput');
+        if (csvFileInput) {
+            csvFileInput.value = '';
+        }
         
         // NEW: Show inventory integration info
         if (successfulImports > 0) {
@@ -591,8 +586,11 @@ async function validateAndImportCSV(results, filename) {
 
 // Show import progress
 function showImportProgress() {
-    document.getElementById('importProgressSection').classList.remove('hidden');
-    updateImportProgress(0);
+    const progressSection = document.getElementById('importProgressSection');
+    if (progressSection) {
+        progressSection.classList.remove('hidden');
+        updateImportProgress(0);
+    }
 }
 
 // Update import progress
@@ -600,18 +598,23 @@ function updateImportProgress(percentage) {
     const progressBar = document.getElementById('importProgressBar');
     const progressText = document.getElementById('importProgressText');
     
-    progressBar.style.width = `${percentage}%`;
-    progressText.textContent = `${Math.round(percentage)}%`;
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressText) progressText.textContent = `${Math.round(percentage)}%`;
 }
 
 // Hide import progress
 function hideImportProgress() {
-    document.getElementById('importProgressSection').classList.add('hidden');
+    const progressSection = document.getElementById('importProgressSection');
+    if (progressSection) {
+        progressSection.classList.add('hidden');
+    }
 }
 
 // UPDATED: Show import results with inventory integration info
 function showImportResults(successful, failed, errors, newDevicesCount) {
     const resultsDiv = document.getElementById('importResults');
+    if (!resultsDiv) return;
+    
     const isSuccess = failed === 0;
     
     resultsDiv.className = `import-results ${isSuccess ? '' : 'error'}`;
@@ -668,7 +671,7 @@ function showImportResults(successful, failed, errors, newDevicesCount) {
                 </div>
                 <p class="text-body-s-regular text-blue-600 mt-1">
                     New devices are automatically added to inventory inward with "New Device" condition.
-                    <a href="inventory.html" class="underline hover:no-underline">Manage inventory →</a>
+                    <button onclick="showInventoryManagement()" class="underline hover:no-underline">Manage inventory →</button>
                 </p>
             </div>
         `;
@@ -694,6 +697,8 @@ function showImportResults(successful, failed, errors, newDevicesCount) {
 function updateImportHistoryList() {
     const historyList = document.getElementById('importHistoryList');
     const emptyState = document.getElementById('importHistoryEmptyState');
+    
+    if (!historyList || !emptyState) return;
     
     if (importHistory.length === 0) {
         historyList.innerHTML = '';
@@ -776,8 +781,13 @@ function createImportHistoryCard(record) {
 
 // Search functionality
 function handleStockSearch() {
-    const searchTerm = document.getElementById('stockSearchInput').value.toLowerCase().trim();
-    const statusFilter = document.getElementById('statusFilter').value;
+    const stockSearchInput = document.getElementById('stockSearchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    if (!stockSearchInput || !statusFilter) return;
+    
+    const searchTerm = stockSearchInput.value.toLowerCase().trim();
+    const statusFilterValue = statusFilter.value;
     
     filteredStockData = stockData.filter(item => {
         const matchesSearch = !searchTerm || (
@@ -789,21 +799,25 @@ function handleStockSearch() {
             (item.device_condition && item.device_condition.toLowerCase().includes(searchTerm))
         );
         
-        const matchesStatus = !statusFilter || item.current_status === statusFilter;
+        const matchesStatus = !statusFilterValue || item.current_status === statusFilterValue;
         
         return matchesSearch && matchesStatus;
     });
     
     updateStockTable();
     
-    if (searchTerm || statusFilter) {
+    if (searchTerm || statusFilterValue) {
         showStockToast(`Found ${filteredStockData.length} devices`, 'success');
     }
 }
 
 function clearStockSearch() {
-    document.getElementById('stockSearchInput').value = '';
-    document.getElementById('statusFilter').value = '';
+    const stockSearchInput = document.getElementById('stockSearchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    
+    if (stockSearchInput) stockSearchInput.value = '';
+    if (statusFilter) statusFilter.value = '';
+    
     filteredStockData = [...stockData];
     updateStockTable();
     showStockToast('Search cleared', 'success');
@@ -932,13 +946,21 @@ function viewStockDeviceDetails(deviceRegistrationNumber) {
         </div>
     `;
     
-    document.getElementById('deviceDetailsContent').innerHTML = content;
-    document.getElementById('deviceDetailsModal').classList.remove('hidden');
+    const deviceDetailsContent = document.getElementById('deviceDetailsContent');
+    const deviceDetailsModal = document.getElementById('deviceDetailsModal');
+    
+    if (deviceDetailsContent && deviceDetailsModal) {
+        deviceDetailsContent.innerHTML = content;
+        deviceDetailsModal.classList.remove('hidden');
+    }
 }
 
 // Close device details modal
 function closeDeviceDetailsModal() {
-    document.getElementById('deviceDetailsModal').classList.add('hidden');
+    const deviceDetailsModal = document.getElementById('deviceDetailsModal');
+    if (deviceDetailsModal) {
+        deviceDetailsModal.classList.add('hidden');
+    }
 }
 
 // Edit stock device (placeholder for future implementation)
@@ -978,48 +1000,76 @@ function viewImportDetails(importId) {
     }
 }
 
-// Loading overlay functions
+// UPDATED: Loading overlay functions to work with shared overlays
 function showStockLoadingOverlay() {
-    document.getElementById('stockLoadingOverlay').classList.remove('hidden');
+    // Use the main loading overlay if stock-specific one doesn't exist
+    const stockOverlay = document.getElementById('stockLoadingOverlay');
+    const mainOverlay = document.getElementById('loadingOverlay');
+    
+    if (stockOverlay) {
+        stockOverlay.classList.remove('hidden');
+    } else if (mainOverlay) {
+        mainOverlay.classList.remove('hidden');
+    }
 }
 
 function hideStockLoadingOverlay() {
-    document.getElementById('stockLoadingOverlay').classList.add('hidden');
+    // Hide both possible overlays
+    const stockOverlay = document.getElementById('stockLoadingOverlay');
+    const mainOverlay = document.getElementById('loadingOverlay');
+    
+    if (stockOverlay) {
+        stockOverlay.classList.add('hidden');
+    }
+    if (mainOverlay) {
+        mainOverlay.classList.add('hidden');
+    }
 }
 
-// Toast notification function
+// UPDATED: Toast notification function to work with shared toast
 function showStockToast(message, type = 'success') {
-    const toast = document.getElementById('stockToast');
-    const messageEl = document.getElementById('stockToastMessage');
-    const iconEl = document.getElementById('stockToastIcon');
+    // Try to use stock-specific toast first, then fall back to main toast
+    let toast = document.getElementById('stockToast');
+    let messageEl = document.getElementById('stockToastMessage');
+    let iconEl = document.getElementById('stockToastIcon');
+    
+    // If stock-specific toast doesn't exist, use main email toast
+    if (!toast) {
+        toast = document.getElementById('emailToast');
+        messageEl = document.getElementById('emailToastMessage');
+        iconEl = null; // Email toast doesn't have icon element
+    }
+    
+    if (!toast || !messageEl) return;
     
     // Set message
     messageEl.textContent = message;
     
-    // Set icon based on type
-    let iconSVG = '';
-    switch (type) {
-        case 'success':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg success';
-            break;
-        case 'error':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg error';
-            break;
-        case 'warning':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg warning';
-            break;
+    // Set icon based on type (only if icon element exists)
+    if (iconEl) {
+        let iconSVG = '';
+        switch (type) {
+            case 'success':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg success';
+                break;
+            case 'error':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg error';
+                break;
+            case 'warning':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg warning';
+                break;
+        }
+        iconEl.innerHTML = iconSVG;
     }
-    
-    iconEl.innerHTML = iconSVG;
     
     // Show toast
     toast.classList.remove('hidden');
@@ -1036,6 +1086,7 @@ function showStockToast(message, type = 'success') {
 
 // Export functions for global access
 window.stockFunctions = {
+    initializeStockManagement,
     goBackToDashboard,
     goToInventoryManagement,
     clearStockSearch,
@@ -1044,5 +1095,6 @@ window.stockFunctions = {
     showImportErrors,
     viewImportDetails,
     closeDeviceDetailsModal,
-    manageInventory
+    manageInventory,
+    loadStockData
 };
