@@ -14,7 +14,6 @@ let approvedCustomers = [];
 let filteredInwardDevices = [];
 let filteredOutwardDevices = [];
 let currentInventoryFilter = '';
-let userSession = null;
 
 // NEW: Device condition mapping
 const DEVICE_CONDITIONS = {
@@ -45,81 +44,98 @@ const OUTWARD_REQUIRED_COLUMNS = [
     'Notes'
 ];
 
-// Initialize inventory management
-document.addEventListener('DOMContentLoaded', function() {
-    // Get user session from localStorage
-    checkInventoryUserSession();
-    
+// UPDATED: Initialize inventory management when inventory content is shown
+function initializeInventoryManagement() {
     // Load initial data
     loadInventoryData();
     
-    // Setup event listeners
-    setupInventoryEventListeners();
-    
-    // Setup realtime listeners
-    setupInventoryRealtimeListeners();
+    // Setup event listeners only if not already set
+    if (!window.inventoryEventListenersSet) {
+        setupInventoryEventListeners();
+        setupInventoryRealtimeListeners();
+        window.inventoryEventListenersSet = true;
+    }
     
     // Show inward tab by default
     showInwardTab();
-});
-
-// Check user session for inventory
-function checkInventoryUserSession() {
-    const savedSession = localStorage.getItem('cautio_user_session');
-    if (savedSession) {
-        try {
-            const sessionData = JSON.parse(savedSession);
-            if (sessionData.expires > Date.now()) {
-                userSession = sessionData.user;
-            }
-        } catch (error) {
-            console.error('Error parsing session:', error);
-        }
-    }
     
-    if (!userSession) {
-        // Redirect to main dashboard login
-        window.location.href = 'index.html';
+    // Check for focused device from stock management
+    const focusDevice = localStorage.getItem('inventory_focus_device');
+    if (focusDevice) {
+        // Clear the stored focus device
+        localStorage.removeItem('inventory_focus_device');
+        // Show a toast about the focused device
+        setTimeout(() => {
+            showInventoryToast(`Focusing on device: ${focusDevice}`, 'success');
+            // Auto-search for the device
+            const searchInput = document.getElementById('inventorySearchInput');
+            if (searchInput) {
+                searchInput.value = focusDevice;
+                handleInventorySearch({ target: { value: focusDevice } });
+            }
+        }, 500);
     }
 }
 
-// Go back to main dashboard
+// UPDATED: Navigation functions for combined structure
 function goBackToDashboard() {
-    window.location.href = 'index.html';
+    // Instead of redirecting, show customers overview
+    showCustomersOverview();
 }
 
 // Setup event listeners for inventory
 function setupInventoryEventListeners() {
     // Search functionality
-    document.getElementById('inventorySearchInput').addEventListener('input', handleInventorySearch);
+    const inventorySearchInput = document.getElementById('inventorySearchInput');
+    if (inventorySearchInput) {
+        inventorySearchInput.addEventListener('input', handleInventorySearch);
+    }
     
     // Form submissions
-    document.getElementById('addInwardForm').addEventListener('submit', handleAddInward);
-    document.getElementById('addOutwardForm').addEventListener('submit', handleAddOutward);
+    const addInwardForm = document.getElementById('addInwardForm');
+    if (addInwardForm) {
+        addInwardForm.addEventListener('submit', handleAddInward);
+    }
+    
+    const addOutwardForm = document.getElementById('addOutwardForm');
+    if (addOutwardForm) {
+        addOutwardForm.addEventListener('submit', handleAddOutward);
+    }
     
     // CSV file inputs for inward
     const inwardCSVInput = document.getElementById('inwardCSVFileInput');
-    inwardCSVInput.addEventListener('change', handleInwardCSVFileSelect);
+    if (inwardCSVInput) {
+        inwardCSVInput.addEventListener('change', handleInwardCSVFileSelect);
+    }
     
     // CSV file inputs for outward
     const outwardCSVInput = document.getElementById('outwardCSVFileInput');
-    outwardCSVInput.addEventListener('change', handleOutwardCSVFileSelect);
+    if (outwardCSVInput) {
+        outwardCSVInput.addEventListener('change', handleOutwardCSVFileSelect);
+    }
     
     // Drag and drop for inward CSV
     const inwardCSVArea = document.getElementById('inwardCSVImportArea');
-    inwardCSVArea.addEventListener('dragover', (e) => handleDragOver(e, 'inward'));
-    inwardCSVArea.addEventListener('dragleave', (e) => handleDragLeave(e, 'inward'));
-    inwardCSVArea.addEventListener('drop', (e) => handleFileDrop(e, 'inward'));
+    if (inwardCSVArea) {
+        inwardCSVArea.addEventListener('dragover', (e) => handleDragOver(e, 'inward'));
+        inwardCSVArea.addEventListener('dragleave', (e) => handleDragLeave(e, 'inward'));
+        inwardCSVArea.addEventListener('drop', (e) => handleFileDrop(e, 'inward'));
+    }
     
     // Drag and drop for outward CSV
     const outwardCSVArea = document.getElementById('outwardCSVImportArea');
-    outwardCSVArea.addEventListener('dragover', (e) => handleDragOver(e, 'outward'));
-    outwardCSVArea.addEventListener('dragleave', (e) => handleDragLeave(e, 'outward'));
-    outwardCSVArea.addEventListener('drop', (e) => handleFileDrop(e, 'outward'));
+    if (outwardCSVArea) {
+        outwardCSVArea.addEventListener('dragover', (e) => handleDragOver(e, 'outward'));
+        outwardCSVArea.addEventListener('dragleave', (e) => handleDragLeave(e, 'outward'));
+        outwardCSVArea.addEventListener('drop', (e) => handleFileDrop(e, 'outward'));
+    }
     
     // Set default date for outward form
-    const today = new Date().toISOString().split('T')[0];
-    document.querySelector('input[name="outwardDate"]').value = today;
+    const outwardDateInput = document.querySelector('input[name="outwardDate"]');
+    if (outwardDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        outwardDateInput.value = today;
+    }
 }
 
 // Setup realtime listeners for inventory
@@ -355,9 +371,13 @@ function updateStockSummary() {
     const availableStock = stockData.filter(item => item.current_status === 'available').length;
     const allocatedStock = stockData.filter(item => item.current_status === 'allocated').length;
     
-    document.getElementById('totalStockCount').textContent = totalStock;
-    document.getElementById('availableStockCount').textContent = availableStock;
-    document.getElementById('allocatedStockCount').textContent = allocatedStock;
+    const totalStockCount = document.getElementById('totalStockCount');
+    const availableStockCount = document.getElementById('availableStockCount');
+    const allocatedStockCount = document.getElementById('allocatedStockCount');
+    
+    if (totalStockCount) totalStockCount.textContent = totalStock;
+    if (availableStockCount) availableStockCount.textContent = availableStock;
+    if (allocatedStockCount) allocatedStockCount.textContent = allocatedStock;
 }
 
 // Update inventory tab content
@@ -369,14 +389,19 @@ function updateInventoryTabs() {
 
 // Update tab counts
 function updateTabCounts() {
-    document.getElementById('inwardCount').textContent = filteredInwardDevices.length;
-    document.getElementById('outwardCount').textContent = filteredOutwardDevices.length;
+    const inwardCount = document.getElementById('inwardCount');
+    const outwardCount = document.getElementById('outwardCount');
+    
+    if (inwardCount) inwardCount.textContent = filteredInwardDevices.length;
+    if (outwardCount) outwardCount.textContent = filteredOutwardDevices.length;
 }
 
 // Update inward tab content
 function updateInwardTab() {
     const inwardList = document.getElementById('inwardDevicesList');
     const inwardEmpty = document.getElementById('inwardEmptyState');
+
+    if (!inwardList || !inwardEmpty) return;
 
     if (filteredInwardDevices.length === 0) {
         inwardList.innerHTML = '';
@@ -391,6 +416,8 @@ function updateInwardTab() {
 function updateOutwardTab() {
     const outwardList = document.getElementById('outwardDevicesList');
     const outwardEmpty = document.getElementById('outwardEmptyState');
+
+    if (!outwardList || !outwardEmpty) return;
 
     if (filteredOutwardDevices.length === 0) {
         outwardList.innerHTML = '';
@@ -532,19 +559,28 @@ function createOutwardDeviceCard(device) {
 // Tab switching functions
 function showInwardTab() {
     hideAllInventoryTabContent();
-    document.getElementById('inwardTabContent').classList.remove('hidden');
+    const inwardTabContent = document.getElementById('inwardTabContent');
+    if (inwardTabContent) {
+        inwardTabContent.classList.remove('hidden');
+    }
     updateInventoryTabHighlight('inwardTab');
 }
 
 function showOutwardTab() {
     hideAllInventoryTabContent();
-    document.getElementById('outwardTabContent').classList.remove('hidden');
+    const outwardTabContent = document.getElementById('outwardTabContent');
+    if (outwardTabContent) {
+        outwardTabContent.classList.remove('hidden');
+    }
     updateInventoryTabHighlight('outwardTab');
 }
 
 function hideAllInventoryTabContent() {
-    document.getElementById('inwardTabContent').classList.add('hidden');
-    document.getElementById('outwardTabContent').classList.add('hidden');
+    const inwardTabContent = document.getElementById('inwardTabContent');
+    const outwardTabContent = document.getElementById('outwardTabContent');
+    
+    if (inwardTabContent) inwardTabContent.classList.add('hidden');
+    if (outwardTabContent) outwardTabContent.classList.add('hidden');
 }
 
 function updateInventoryTabHighlight(activeTabId) {
@@ -608,7 +644,10 @@ function handleInventorySearch(e) {
 }
 
 function clearInventorySearch() {
-    document.getElementById('inventorySearchInput').value = '';
+    const inventorySearchInput = document.getElementById('inventorySearchInput');
+    if (inventorySearchInput) {
+        inventorySearchInput.value = '';
+    }
     currentInventoryFilter = '';
     filteredInwardDevices = [...inwardDevices];
     filteredOutwardDevices = [...outwardDevices];
@@ -618,27 +657,41 @@ function clearInventorySearch() {
 
 // Modal functions
 function showAddInwardForm() {
-    document.getElementById('addInwardModal').classList.remove('hidden');
+    const addInwardModal = document.getElementById('addInwardModal');
+    if (addInwardModal) {
+        addInwardModal.classList.remove('hidden');
+    }
 }
 
 function closeAddInwardForm() {
-    document.getElementById('addInwardModal').classList.add('hidden');
-    document.getElementById('addInwardForm').reset();
+    const addInwardModal = document.getElementById('addInwardModal');
+    const addInwardForm = document.getElementById('addInwardForm');
+    
+    if (addInwardModal) addInwardModal.classList.add('hidden');
+    if (addInwardForm) addInwardForm.reset();
 }
 
 function showAddOutwardForm() {
-    document.getElementById('addOutwardModal').classList.remove('hidden');
-    populateCustomerDropdown();
+    const addOutwardModal = document.getElementById('addOutwardModal');
+    if (addOutwardModal) {
+        addOutwardModal.classList.remove('hidden');
+        populateCustomerDropdown();
+    }
 }
 
 function closeAddOutwardForm() {
-    document.getElementById('addOutwardModal').classList.add('hidden');
-    document.getElementById('addOutwardForm').reset();
+    const addOutwardModal = document.getElementById('addOutwardModal');
+    const addOutwardForm = document.getElementById('addOutwardForm');
+    
+    if (addOutwardModal) addOutwardModal.classList.add('hidden');
+    if (addOutwardForm) addOutwardForm.reset();
 }
 
 // Populate customer dropdown
 function populateCustomerDropdown() {
     const customerSelect = document.getElementById('customerSelect');
+    if (!customerSelect) return;
+    
     customerSelect.innerHTML = '<option value="">Select customer</option>';
     
     approvedCustomers.forEach(customer => {
@@ -867,21 +920,27 @@ async function handleAddOutward(e) {
 function handleDragOver(e, type) {
     e.preventDefault();
     const area = document.getElementById(`${type}CSVImportArea`);
-    area.classList.add('drag-over');
+    if (area) {
+        area.classList.add('drag-over');
+    }
 }
 
 // Handle drag leave event
 function handleDragLeave(e, type) {
     e.preventDefault();
     const area = document.getElementById(`${type}CSVImportArea`);
-    area.classList.remove('drag-over');
+    if (area) {
+        area.classList.remove('drag-over');
+    }
 }
 
 // Handle file drop event
 function handleFileDrop(e, type) {
     e.preventDefault();
     const area = document.getElementById(`${type}CSVImportArea`);
-    area.classList.remove('drag-over');
+    if (area) {
+        area.classList.remove('drag-over');
+    }
     
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -1103,7 +1162,10 @@ async function validateAndImportInwardCSV(results, filename) {
         await loadInventoryData();
         
         // Clear file input
-        document.getElementById('inwardCSVFileInput').value = '';
+        const inwardCSVFileInput = document.getElementById('inwardCSVFileInput');
+        if (inwardCSVFileInput) {
+            inwardCSVFileInput.value = '';
+        }
         
     } catch (error) {
         console.error('Error importing inward CSV:', error);
@@ -1249,7 +1311,10 @@ async function validateAndImportOutwardCSV(results, filename) {
         await loadInventoryData();
         
         // Clear file input
-        document.getElementById('outwardCSVFileInput').value = '';
+        const outwardCSVFileInput = document.getElementById('outwardCSVFileInput');
+        if (outwardCSVFileInput) {
+            outwardCSVFileInput.value = '';
+        }
         
     } catch (error) {
         console.error('Error importing outward CSV:', error);
@@ -1260,24 +1325,32 @@ async function validateAndImportOutwardCSV(results, filename) {
 
 // Progress and result functions for inward
 function showInwardImportProgress() {
-    document.getElementById('inwardImportProgressSection').classList.remove('hidden');
-    updateInwardImportProgress(0);
+    const progressSection = document.getElementById('inwardImportProgressSection');
+    if (progressSection) {
+        progressSection.classList.remove('hidden');
+        updateInwardImportProgress(0);
+    }
 }
 
 function updateInwardImportProgress(percentage) {
     const progressBar = document.getElementById('inwardImportProgressBar');
     const progressText = document.getElementById('inwardImportProgressText');
     
-    progressBar.style.width = `${percentage}%`;
-    progressText.textContent = `${Math.round(percentage)}%`;
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressText) progressText.textContent = `${Math.round(percentage)}%`;
 }
 
 function hideInwardImportProgress() {
-    document.getElementById('inwardImportProgressSection').classList.add('hidden');
+    const progressSection = document.getElementById('inwardImportProgressSection');
+    if (progressSection) {
+        progressSection.classList.add('hidden');
+    }
 }
 
 function showInwardImportResults(successful, failed, errors) {
     const resultsDiv = document.getElementById('inwardImportResults');
+    if (!resultsDiv) return;
+    
     const isSuccess = failed === 0;
     
     resultsDiv.className = `import-results ${isSuccess ? '' : 'error'}`;
@@ -1327,24 +1400,32 @@ function showInwardImportResults(successful, failed, errors) {
 
 // Progress and result functions for outward
 function showOutwardImportProgress() {
-    document.getElementById('outwardImportProgressSection').classList.remove('hidden');
-    updateOutwardImportProgress(0);
+    const progressSection = document.getElementById('outwardImportProgressSection');
+    if (progressSection) {
+        progressSection.classList.remove('hidden');
+        updateOutwardImportProgress(0);
+    }
 }
 
 function updateOutwardImportProgress(percentage) {
     const progressBar = document.getElementById('outwardImportProgressBar');
     const progressText = document.getElementById('outwardImportProgressText');
     
-    progressBar.style.width = `${percentage}%`;
-    progressText.textContent = `${Math.round(percentage)}%`;
+    if (progressBar) progressBar.style.width = `${percentage}%`;
+    if (progressText) progressText.textContent = `${Math.round(percentage)}%`;
 }
 
 function hideOutwardImportProgress() {
-    document.getElementById('outwardImportProgressSection').classList.add('hidden');
+    const progressSection = document.getElementById('outwardImportProgressSection');
+    if (progressSection) {
+        progressSection.classList.add('hidden');
+    }
 }
 
 function showOutwardImportResults(successful, failed, errors) {
     const resultsDiv = document.getElementById('outwardImportResults');
+    if (!resultsDiv) return;
+    
     const isSuccess = failed === 0;
     
     resultsDiv.className = `import-results ${isSuccess ? '' : 'error'}`;
@@ -1468,48 +1549,76 @@ async function returnDevice(outwardDeviceId) {
     }
 }
 
-// Loading overlay functions
+// UPDATED: Loading overlay functions to work with shared overlays
 function showInventoryLoadingOverlay() {
-    document.getElementById('inventoryLoadingOverlay').classList.remove('hidden');
+    // Use the main loading overlay if inventory-specific one doesn't exist
+    const inventoryOverlay = document.getElementById('inventoryLoadingOverlay');
+    const mainOverlay = document.getElementById('loadingOverlay');
+    
+    if (inventoryOverlay) {
+        inventoryOverlay.classList.remove('hidden');
+    } else if (mainOverlay) {
+        mainOverlay.classList.remove('hidden');
+    }
 }
 
 function hideInventoryLoadingOverlay() {
-    document.getElementById('inventoryLoadingOverlay').classList.add('hidden');
+    // Hide both possible overlays
+    const inventoryOverlay = document.getElementById('inventoryLoadingOverlay');
+    const mainOverlay = document.getElementById('loadingOverlay');
+    
+    if (inventoryOverlay) {
+        inventoryOverlay.classList.add('hidden');
+    }
+    if (mainOverlay) {
+        mainOverlay.classList.add('hidden');
+    }
 }
 
-// Toast notification function
+// UPDATED: Toast notification function to work with shared toast
 function showInventoryToast(message, type = 'success') {
-    const toast = document.getElementById('inventoryToast');
-    const messageEl = document.getElementById('inventoryToastMessage');
-    const iconEl = document.getElementById('inventoryToastIcon');
+    // Try to use inventory-specific toast first, then fall back to main toast
+    let toast = document.getElementById('inventoryToast');
+    let messageEl = document.getElementById('inventoryToastMessage');
+    let iconEl = document.getElementById('inventoryToastIcon');
+    
+    // If inventory-specific toast doesn't exist, use main email toast
+    if (!toast) {
+        toast = document.getElementById('emailToast');
+        messageEl = document.getElementById('emailToastMessage');
+        iconEl = null; // Email toast doesn't have icon element
+    }
+    
+    if (!toast || !messageEl) return;
     
     // Set message
     messageEl.textContent = message;
     
-    // Set icon based on type
-    let iconSVG = '';
-    switch (type) {
-        case 'success':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg success';
-            break;
-        case 'error':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg error';
-            break;
-        case 'warning':
-            iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>`;
-            toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg warning';
-            break;
+    // Set icon based on type (only if icon element exists)
+    if (iconEl) {
+        let iconSVG = '';
+        switch (type) {
+            case 'success':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg success';
+                break;
+            case 'error':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg error';
+                break;
+            case 'warning':
+                iconSVG = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>`;
+                toast.className = 'fixed top-4 right-4 z-50 max-w-sm p-4 rounded-lg shadow-lg warning';
+                break;
+        }
+        iconEl.innerHTML = iconSVG;
     }
-    
-    iconEl.innerHTML = iconSVG;
     
     // Show toast
     toast.classList.remove('hidden');
@@ -1526,6 +1635,7 @@ function showInventoryToast(message, type = 'success') {
 
 // Export functions for global access (if needed)
 window.inventoryFunctions = {
+    initializeInventoryManagement,
     showInwardTab,
     showOutwardTab,
     showAddInwardForm,
@@ -1535,5 +1645,6 @@ window.inventoryFunctions = {
     clearInventorySearch,
     viewDeviceDetails,
     returnDevice,
-    goBackToDashboard
+    goBackToDashboard,
+    loadInventoryData
 };
