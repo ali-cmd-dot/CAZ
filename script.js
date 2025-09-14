@@ -1774,33 +1774,45 @@ function showCustomersOverview() {
     updateMenuHighlight('customers');
 }
 
-// UPDATED: Stock navigation function - Now shows content instead of redirecting
+// FIXED: Stock navigation function - Now properly initializes stock management
 function showStock() {
     hideAllContent();
     document.getElementById('stockContent').classList.remove('hidden');
     updateMenuHighlight('stock');
     
-    // Initialize stock management if not already initialized
-    if (typeof window.stockFunctions !== 'undefined') {
-        // Stock management is available, reload data
-        if (typeof loadStockData === 'function') {
-            loadStockData();
-        }
+    console.log('Showing Stock Management...');
+    
+    // FIXED: Check for proper function names
+    if (typeof initializeStockManagement === 'function') {
+        console.log('Initializing Stock Management...');
+        initializeStockManagement();
+    } else if (typeof loadStockData === 'function') {
+        console.log('Loading Stock Data...');
+        loadStockData();
+    } else {
+        console.error('Stock management functions not found');
+        console.log('Available functions:', Object.keys(window).filter(key => key.includes('stock') || key.includes('Stock')));
     }
 }
 
-// UPDATED: Inventory Management navigation function - Now shows content instead of redirecting
+// FIXED: Inventory Management navigation function - Now properly initializes inventory management
 function showInventoryManagement() {
     hideAllContent();
     document.getElementById('inventoryContent').classList.remove('hidden');
     updateMenuHighlight('inventory');
     
-    // Initialize inventory management if not already initialized
-    if (typeof window.inventoryFunctions !== 'undefined') {
-        // Inventory management is available, reload data
-        if (typeof loadInventoryData === 'function') {
-            loadInventoryData();
-        }
+    console.log('Showing Inventory Management...');
+    
+    // FIXED: Check for proper function names
+    if (typeof initializeInventoryManagement === 'function') {
+        console.log('Initializing Inventory Management...');
+        initializeInventoryManagement();
+    } else if (typeof loadInventoryData === 'function') {
+        console.log('Loading Inventory Data...');
+        loadInventoryData();
+    } else {
+        console.error('Inventory management functions not found');
+        console.log('Available functions:', Object.keys(window).filter(key => key.includes('inventory') || key.includes('Inventory')));
     }
 }
 
